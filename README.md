@@ -1,28 +1,34 @@
 # ATAC-seq
 
+## Overview
+
+本文提供几种ATAC-seq的流程方法，从数据质控到Call Peak结束的基础分析。下游分析之后做了再补上。
+本文包括目前常见的三种call peak软件的流程，HMMATAC、MASC2、homer。
+
+
 ```
 ##1.fastq QC
 fastqc read1 read2
 
 ###2.mapping
 
-bwa mem -t 20 -M ref.fa read1.fastq read2.fastq > sample.sam
+bwa mem -t 20 -M ref.fa read1.fastq read2.fastq > sample.sam   #比对
 
-samtools view -bS sample.sam -o sample.bam
+samtools view -bS sample.sam -o sample.bam  # sam2bam
  
-samtools flagstat sample.bam
+samtools flagstat sample.bam  #bam文件统计
 
-samtools view -f 3 -q 30 -o sample_q30.bam sample.bam # -f 3 specifies only properly-paired reads
+samtools view -q 30 -o sample_q30.bam sample.bam  # q30筛选比对质量值reads
+samtools view -f 3 -o sample_q30_f3.bam sample_q30.bam # -f 3 specifies only properly-paired reads
 
-samtools sort -@ 20 -o sample_q30_sort.bam sample_q30.bam
+samtools sort -@ 20 -o sample_q30_sort.bam sample_q30.bam  # 对bam文件排序
 
-java -jar picard.jar MarkDuplicates REMOVE_DUPLICATES=TRUE I=sample_q30_sort.bam O=sample_q30_sort_dedup.bam M=sample_sort.markduplicates.log
+java -jar picard.jar MarkDuplicates REMOVE_DUPLICATES=TRUE I=sample_q30_sort.bam O=sample_q30_sort_dedup.bam M=sample_sort.markduplicates.log #删除PCR重复
 
-samtools index sample_q30_sort_dedup.bam
-
+samtools index sample_q30_sort_dedup.bam # 对final_bam文件进行建立index
 
 ataqv --name sample --autosomal-reference-file "file name" --metrics-file sample.ataqv.json.gz rice sample_q30_sort_dedup.bam > sample.ataqv.out
-mkarv my_fantastic_experiment sample.ataqv.json.gz
+mkarv my_fantastic_experiment sample.ataqv.json.gz ##质控软件ataqv
 
 # in R
 
@@ -47,10 +53,6 @@ treat1.dups <- readsDupFreq(treat1, index=treat1.bai)
 
 # Estimate library complexity
 treat1.complexity <- estimateLibComplexity(treat1.dups, times=100, interpolate.sample.sizes=seq(0.1, 1, by=0.01)
-
-
-##
-0x2	PROPER_PAIR	 每对短序列都被 aligner 合适的比对上了
 
 
 ####Tn5 reads shift
@@ -78,7 +80,7 @@ computeMatrix reference-point \ # choose the mode
 #rice 的有效基因组大小3.0e8
 macs2 callpeak -t *.bam -f bam --shift 75 --extsize 150 --nomodel --keep-dup all -B --SPMR -g 3.0e8 --outdir Macs2_out
 
-bam2bed
+samtools view -bf 0x2 reads.bam | bedtools bamtobed -i stdin >reads.bedpe ## bam2bed ##0x2	PROPER_PAIR	 每对短序列都被 aligner 合适的比对上了
 
 macs2 callpeak -t ATAC1.rmdup.bed -n ATAC1 -g 1.0e8 --call-summit -f BAMPE -nomodel -B --SPMR --extsize 200 
 
